@@ -16,10 +16,7 @@ def check_data():
         open('../Data/data.csv', 'wb').write(r.content)
 
 
-def main():
-    check_data()
-    df = pd.read_csv('../Data/data.csv')
-    X, y = df.drop('salary', axis=1), df['salary']
+def remove_correlated(X, y):
     correlated = X.corr()[(X.corr() > 0.2) & (X.corr() < 1)].dropna(how='all').index.tolist()
     correlated.extend(map(list, list(combinations(correlated, 2))))
     scores = {}
@@ -29,7 +26,24 @@ def main():
         model = LinearRegression()
         model.fit(X_train, y_train)
         scores[i if type(i) == str else '_'.join(i)] = mape(y_test, model.predict(X_test))
-    print(min(scores.values()))
+    return X.drop(min(scores, key=lambda x: scores[x]).split('_'), axis=1)
+
+
+def main():
+    check_data()
+    df = pd.read_csv('../Data/data.csv')
+    X, y = df.drop('salary', axis=1), df['salary']
+    X_mod = remove_correlated(X, y)
+    X_train, X_test, y_train, y_test = train_test_split(X_mod, y, test_size=0.3, random_state=100)
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+    prediction = model.predict(X_test)
+    scores = {}
+    for replace in (0, y_train.median()):
+        prediction_mod = prediction
+        prediction_mod[prediction_mod < 0] = replace
+        scores[replace] = mape(y_test, prediction_mod)
+    print(f'{min(scores.values()):.5f}')
 
 
 if __name__ == '__main__':
